@@ -19,6 +19,8 @@ library
   build-depends:       attoparsec
                      , base >= 4.7 && < 5
                      , text >= 1.2.2.1
+                     , unordered-containers
+                     , containers
   default-language:    Haskell2010
 
 executable junos-confparse-exe
@@ -29,6 +31,8 @@ executable junos-confparse-exe
                      , base
                      , junos-confparse
                      , text >= 1.2.2.1
+                     , unordered-containers
+                     , containers
   default-language:    Haskell2010
 
 test-suite junos-confparse-test
@@ -39,6 +43,8 @@ test-suite junos-confparse-test
                      , base
                      , junos-confparse
                      , text >= 1.2.2.1
+                     , unordered-containers
+                     , containers
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 

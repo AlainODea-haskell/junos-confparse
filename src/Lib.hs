@@ -2,6 +2,9 @@
 
 module Lib
     ( addressBookParser
+    , names
+    , deref
+    , derefAll
     ) where
 
 import Data.Attoparsec.Text (
@@ -16,37 +19,75 @@ import Data.Attoparsec.Text (
 import Data.Text (Text)
 import Data.Word
 import Control.Applicative (many, (<|>))
+import Data.HashMap.Strict (HashMap(), empty, insert, lookupDefault)
+import qualified Data.Set as Set
 
 type AddressBook = [AddressBookEntry]
 
 data AddressBookEntry =
     Address AddressName CIDR
+  | AddressDNS AddressDNSName FQDN
   | AddressSet AddressSetName AddressSetEntry
-  deriving Show
+  deriving (Show, Ord, Eq)
 
 type AddressName = Text
+
+type AddressDNSName = Text
+
+type FQDN = Text
 
 type AddressSetName = Text
 
 data AddressSetEntry =
     AddressReference AddressName
   | AddressSetReference AddressSetName
-  deriving Show
+  deriving (Show, Ord, Eq)
 
 data CIDR = CIDR IP Prefix
-  deriving Show
+  deriving (Show, Ord, Eq)
 
-data IP = IP Word8 Word8 Word8 Word8 deriving Show
+data IP = IP Word8 Word8 Word8 Word8
+  deriving (Show, Ord, Eq)
 
 type Prefix = Int
+
+names :: [AddressBookEntry] -> HashMap Text [AddressBookEntry]
+names = foldr g empty
+  where g :: AddressBookEntry -> HashMap Text [AddressBookEntry] -> HashMap Text [AddressBookEntry]
+        g x@(AddressDNS name _) y = insert name (x:(lookupDefault [] name y)) y
+        g x@(Address name _) y = insert name (x:(lookupDefault [] name y)) y
+        g x@(AddressSet name _) y = insert name (x:(lookupDefault [] name y)) y
+
+derefAll :: [AddressBookEntry] -> [AddressBookEntry]
+derefAll parsed = Set.toList . Set.fromList . concat $
+  Prelude.map ((flip deref) $
+               names parsed) parsed
+
+deref :: AddressBookEntry -> HashMap Text [AddressBookEntry] -> [AddressBookEntry]
+deref (AddressSet _ entry) xs = derefEntry entry
+  where derefEntry :: AddressSetEntry -> [AddressBookEntry]
+        derefEntry (AddressReference name) = concat . map (flip deref $ xs) $ derefName name
+        derefEntry (AddressSetReference name) = concat . map (flip deref $ xs) $ derefName name
+        derefName :: Text -> [AddressBookEntry]
+        derefName name = lookupDefault [] name xs
+deref x _ = [x]
 
 addressBookParser :: Parser AddressBook
 addressBookParser = many $ addressBookEntryParser <* endOfLine
 
 addressBookEntryParser :: Parser AddressBookEntry
 addressBookEntryParser =
-     addressBookEntryAddressParser
+     addressBookEntryAddressDNSParser
+ <|> addressBookEntryAddressParser
  <|> addressBookEntryAddressSetParser
+
+addressBookEntryAddressDNSParser :: Parser AddressBookEntry
+addressBookEntryAddressDNSParser = do
+  _ <- string "set security zones security-zone untrust address-book address "
+  n <- takeTill (==' ')
+  _ <- string " dns-name "
+  dns <- takeTill isEndOfLine
+  return $ AddressDNS n dns
 
 addressBookEntryAddressParser :: Parser AddressBookEntry
 addressBookEntryAddressParser = do
