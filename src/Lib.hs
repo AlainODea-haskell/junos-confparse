@@ -5,6 +5,7 @@ module Lib
     , names
     , deref
     , derefAll
+    , cidr
     ) where
 
 import Data.Attoparsec.Text (
@@ -16,7 +17,7 @@ import Data.Attoparsec.Text (
   , takeTill
   , isEndOfLine
   )
-import Data.Text (Text)
+import Data.Text (Text(), toLower)
 import Data.Word
 import Control.Applicative (many, (<|>))
 import Data.HashMap.Strict (HashMap(), empty, insert, lookupDefault)
@@ -63,6 +64,10 @@ derefAll parsed = Set.toList . Set.fromList . concat $
   Prelude.map ((flip deref) $
                names parsed) parsed
 
+cidr :: AddressBookEntry -> Maybe CIDR
+cidr (Address _ x) = Just x
+cidr _ = Nothing
+
 deref :: AddressBookEntry -> HashMap Text [AddressBookEntry] -> [AddressBookEntry]
 deref (AddressSet _ entry) xs = derefEntry entry
   where derefEntry :: AddressSetEntry -> [AddressBookEntry]
@@ -87,15 +92,15 @@ addressBookEntryAddressDNSParser = do
   n <- takeTill (==' ')
   _ <- string " dns-name "
   dns <- takeTill isEndOfLine
-  return $ AddressDNS n dns
+  return $ AddressDNS (toLower n) (toLower dns)
 
 addressBookEntryAddressParser :: Parser AddressBookEntry
 addressBookEntryAddressParser = do
   _ <- string "set security zones security-zone untrust address-book address "
   n <- takeTill (==' ')
   _ <- char ' '
-  cidr <- cidrParser
-  return $ Address n cidr
+  c <- cidrParser
+  return $ Address (toLower n) c
 
 cidrParser :: Parser CIDR
 cidrParser = do
@@ -115,7 +120,7 @@ addressBookEntryAddressSetParser = do
   _ <- string "set security zones security-zone untrust address-book address-set "
   n <- takeTill (==' ')
   e <- addressSetEntryParser
-  return $ AddressSet n e
+  return $ AddressSet (toLower n) e
 
 addressSetEntryParser :: Parser AddressSetEntry
 addressSetEntryParser =
@@ -126,10 +131,10 @@ addressSetEntryAddressParser :: Parser AddressSetEntry
 addressSetEntryAddressParser = do
   _ <- string " address "
   n <- takeTill isEndOfLine
-  return $ AddressReference n
+  return $ AddressReference (toLower n)
 
 addressSetEntryAddressSetParser :: Parser AddressSetEntry
 addressSetEntryAddressSetParser = do
   _ <- string " address-set "
   n <- takeTill isEndOfLine
-  return $ AddressSetReference n
+  return $ AddressSetReference (toLower n)

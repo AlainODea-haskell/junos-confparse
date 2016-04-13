@@ -1,3 +1,9 @@
-set security zones security-zone untrust address-book address Net_10.0.0.1/16 10.0.0.1/16
-set security zones security-zone untrust address-book address-set AcmeWidgetsCo address Net_10.0.0.1/16
+set security zones security-zone untrust address-book address Net_10.0.0.0/16 10.0.0.0/16
+set security zones security-zone untrust address-book address Net_10.1.0.0/16 10.1.0.0/16
+set security zones security-zone untrust address-book address Net_10.2.0.0/16 10.2.0.0/16
+set security zones security-zone untrust address-book address acme-widgets.example.com dns-name acme-widgets.example.com
+set security zones security-zone untrust address-book address-set AcmeWidgetsCo address Net_10.0.0.0/16
+set security zones security-zone untrust address-book address-set AcmeWidgetsCo address Net_10.1.0.0/16
+set security zones security-zone untrust address-book address-set AcmeWidgetsCo address Net_10.2.0.0/16
+set security zones security-zone untrust address-book address-set AcmeWidgetsCo address acme-widgets.example.com
 set security zones security-zone untrust address-book address-set PartnerNetworks address-set AcmeWidgetsCo
