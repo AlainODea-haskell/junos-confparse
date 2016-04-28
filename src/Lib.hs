@@ -18,12 +18,13 @@ import Data.Attoparsec.Text (
   , isEndOfLine
   )
 import Data.Text (Text(), toLower)
+import qualified Data.Text as Text
 import Data.Word
 import Control.Applicative (many, (<|>))
 import Data.HashMap.Strict (HashMap(), empty, insert, lookupDefault)
 import qualified Data.Set as Set
 
-type AddressBook = [AddressBookEntry]
+type AddressBook = [Maybe AddressBookEntry]
 
 data AddressBookEntry =
     Address AddressName CIDR
@@ -50,7 +51,7 @@ data CIDR = CIDR IP Prefix
 data IP = IP Word8 Word8 Word8 Word8
   deriving (Show, Ord, Eq)
 
-type Prefix = Int
+type Prefix = Word8
 
 names :: [AddressBookEntry] -> HashMap Text [AddressBookEntry]
 names = foldr g empty
@@ -64,8 +65,15 @@ derefAll parsed = Set.toList . Set.fromList . concat $
   Prelude.map ((flip deref) $
                names parsed) parsed
 
-cidr :: AddressBookEntry -> Maybe CIDR
-cidr (Address _ x) = Just x
+cidr :: AddressBookEntry -> Maybe Text
+cidr (Address _ (CIDR (IP x1 x2 x3 x4) p)) = Just (
+  Text.concat [
+      Text.intercalate "." [showText x1, showText x2, showText x3, showText x4]
+      , "/"
+      , showText p
+      ])
+ where showText :: Word8 -> Text
+       showText = Text.pack . show
 cidr _ = Nothing
 
 deref :: AddressBookEntry -> HashMap Text [AddressBookEntry] -> [AddressBookEntry]
@@ -80,27 +88,33 @@ deref x _ = [x]
 addressBookParser :: Parser AddressBook
 addressBookParser = many $ addressBookEntryParser <* endOfLine
 
-addressBookEntryParser :: Parser AddressBookEntry
+addressBookEntryParser :: Parser (Maybe AddressBookEntry)
 addressBookEntryParser =
      addressBookEntryAddressDNSParser
  <|> addressBookEntryAddressParser
  <|> addressBookEntryAddressSetParser
+ <|> skipLine
 
-addressBookEntryAddressDNSParser :: Parser AddressBookEntry
+skipLine :: Parser (Maybe AddressBookEntry)
+skipLine = do
+  _ <- takeTill isEndOfLine
+  return Nothing
+
+addressBookEntryAddressDNSParser :: Parser (Maybe AddressBookEntry)
 addressBookEntryAddressDNSParser = do
   _ <- string "set security zones security-zone untrust address-book address "
   n <- takeTill (==' ')
   _ <- string " dns-name "
   dns <- takeTill isEndOfLine
-  return $ AddressDNS (toLower n) (toLower dns)
+  return $ Just $ AddressDNS (toLower n) (toLower dns)
 
-addressBookEntryAddressParser :: Parser AddressBookEntry
+addressBookEntryAddressParser :: Parser (Maybe AddressBookEntry)
 addressBookEntryAddressParser = do
   _ <- string "set security zones security-zone untrust address-book address "
   n <- takeTill (==' ')
   _ <- char ' '
   c <- cidrParser
-  return $ Address (toLower n) c
+  return $ Just $ Address (toLower n) c
 
 cidrParser :: Parser CIDR
 cidrParser = do
@@ -115,12 +129,12 @@ cidrParser = do
   d5 <- decimal
   return $ CIDR (IP d1 d2 d3 d4) d5
 
-addressBookEntryAddressSetParser :: Parser AddressBookEntry
+addressBookEntryAddressSetParser :: Parser (Maybe AddressBookEntry)
 addressBookEntryAddressSetParser = do
   _ <- string "set security zones security-zone untrust address-book address-set "
   n <- takeTill (==' ')
   e <- addressSetEntryParser
-  return $ AddressSet (toLower n) e
+  return $ Just $ AddressSet (toLower n) e
 
 addressSetEntryParser :: Parser AddressSetEntry
 addressSetEntryParser =
